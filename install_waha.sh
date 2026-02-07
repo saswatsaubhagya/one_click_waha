@@ -3,8 +3,19 @@
 set -e
 
 echo "=========================================="
-echo " WAHA Auto Installer (Official ENV)"
+echo " WAHA Full Production Installer"
 echo "=========================================="
+
+#############################################
+# 0️⃣ Ask for Domain
+#############################################
+
+read -p "Enter your primary domain (example.com): " PRIMARY_DOMAIN
+
+if [ -z "$PRIMARY_DOMAIN" ]; then
+    echo "Domain is required!"
+    exit 1
+fi
 
 #############################################
 # 1️⃣ Install Docker if not present
@@ -38,20 +49,11 @@ then
 
     echo "Docker installed successfully."
 else
-    echo "Docker is already installed."
+    echo "Docker already installed."
 fi
 
 #############################################
-# 2️⃣ Check Docker Compose
-#############################################
-
-if ! docker compose version &> /dev/null
-then
-    apt install -y docker-compose-plugin
-fi
-
-#############################################
-# 3️⃣ Setup WAHA Directory
+# 2️⃣ Setup WAHA Directory
 #############################################
 
 WAHA_DIR="/opt/waha"
@@ -59,27 +61,58 @@ mkdir -p $WAHA_DIR
 cd $WAHA_DIR
 
 #############################################
-# 4️⃣ Generate Secure Credentials
+# 3️⃣ Generate Secure Credentials
 #############################################
 
 WAHA_API_KEY=$(openssl rand -hex 32)
-WAHA_DASHBOARD_PASSWORD=$(openssl rand -base64 16)
-WHATSAPP_SWAGGER_PASSWORD=$(openssl rand -base64 16)
+WAHA_DASHBOARD_USERNAME="admin"
+WAHA_DASHBOARD_PASSWORD=$(openssl rand -hex 32)
+WHATSAPP_SWAGGER_USERNAME="admin"
+WHATSAPP_SWAGGER_PASSWORD=$(openssl rand -hex 32)
 
 #############################################
-# 5️⃣ Create .env file (Official Variables)
+# 4️⃣ Create .env File
 #############################################
 
 cat <<EOF > .env
+# ====================
+# ===== SECURITY =====
+# ====================
 WAHA_API_KEY=${WAHA_API_KEY}
+WAHA_DASHBOARD_USERNAME=${WAHA_DASHBOARD_USERNAME}
 WAHA_DASHBOARD_PASSWORD=${WAHA_DASHBOARD_PASSWORD}
+WHATSAPP_SWAGGER_USERNAME=${WHATSAPP_SWAGGER_USERNAME}
 WHATSAPP_SWAGGER_PASSWORD=${WHATSAPP_SWAGGER_PASSWORD}
+
+WAHA_DASHBOARD_ENABLED=True
+WHATSAPP_SWAGGER_ENABLED=True
+
+# ==================
+# ===== COMMON =====
+# ==================
+WHATSAPP_DEFAULT_ENGINE=WEBJS
+WAHA_BASE_URL=https://${PRIMARY_DOMAIN}
+WAHA_PUBLIC_URL=https://${PRIMARY_DOMAIN}
+
+# ===================
+# ===== LOGGING =====
+# ===================
+WAHA_LOG_FORMAT=JSON
+WAHA_LOG_LEVEL=info
+WAHA_PRINT_QR=False
+
+# =========================
+# ===== MEDIA STORAGE =====
+# =========================
+WAHA_MEDIA_STORAGE=LOCAL
+WHATSAPP_FILES_LIFETIME=0
+WHATSAPP_FILES_FOLDER=/app/.media
 EOF
 
 echo ".env file created."
 
 #############################################
-# 6️⃣ Create docker-compose.yml
+# 5️⃣ Create docker-compose.yml
 #############################################
 
 cat <<EOF > docker-compose.yml
@@ -96,10 +129,11 @@ services:
       - "3000:3000"
     volumes:
       - ./sessions:/app/sessions
+      - ./media:/app/.media
 EOF
 
 #############################################
-# 7️⃣ Start WAHA
+# 6️⃣ Start WAHA
 #############################################
 
 docker compose up -d
@@ -107,22 +141,26 @@ docker compose up -d
 sleep 5
 
 #############################################
-# 8️⃣ Display Credentials
+# 7️⃣ Display Credentials
 #############################################
 
+echo ""
 echo "=========================================="
 echo " WAHA Installed Successfully 🎉"
 echo "=========================================="
-echo "URL: http://localhost:3000"
+echo "Domain: https://${PRIMARY_DOMAIN}"
+echo "Local URL: http://SERVER_IP:3000"
 echo ""
 echo "WAHA_API_KEY:"
 echo "${WAHA_API_KEY}"
 echo ""
-echo "WAHA_DASHBOARD_PASSWORD:"
-echo "${WAHA_DASHBOARD_PASSWORD}"
+echo "Dashboard Login:"
+echo "Username: ${WAHA_DASHBOARD_USERNAME}"
+echo "Password: ${WAHA_DASHBOARD_PASSWORD}"
 echo ""
-echo "WHATSAPP_SWAGGER_PASSWORD:"
-echo "${WHATSAPP_SWAGGER_PASSWORD}"
+echo "Swagger Login:"
+echo "Username: ${WHATSAPP_SWAGGER_USERNAME}"
+echo "Password: ${WHATSAPP_SWAGGER_PASSWORD}"
 echo ""
 echo "WAHA Directory: ${WAHA_DIR}"
 echo "=========================================="
