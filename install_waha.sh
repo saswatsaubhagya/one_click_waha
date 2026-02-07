@@ -3,22 +3,26 @@
 set -e
 
 echo "=========================================="
-echo " WAHA Full Production Installer"
+echo "      WAHA One-Click Installer"
 echo "=========================================="
 
 #############################################
-# 0️⃣ Ask for Domain
+# 0️⃣ Detect Server Public IP
 #############################################
 
-read -p "Enter your primary domain (example.com): " PRIMARY_DOMAIN
+echo "Detecting server IP..."
 
-if [ -z "$PRIMARY_DOMAIN" ]; then
-    echo "Domain is required!"
+SERVER_IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
+
+if [ -z "$SERVER_IP" ]; then
+    echo "Could not detect server IP"
     exit 1
 fi
 
+echo "Detected Server IP: $SERVER_IP"
+
 #############################################
-# 1️⃣ Install Docker if not present
+# 1️⃣ Install Docker if missing
 #############################################
 
 if ! command -v docker &> /dev/null
@@ -26,7 +30,7 @@ then
     echo "Docker not found. Installing Docker..."
 
     apt update
-    apt install -y ca-certificates curl gnupg lsb-release
+    apt install -y ca-certificates curl gnupg lsb-release ufw
 
     install -m 0755 -d /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
@@ -64,6 +68,8 @@ cd $WAHA_DIR
 # 3️⃣ Generate Secure Credentials
 #############################################
 
+echo "Generating secure credentials..."
+
 WAHA_API_KEY=$(openssl rand -hex 32)
 WAHA_DASHBOARD_USERNAME="admin"
 WAHA_DASHBOARD_PASSWORD=$(openssl rand -hex 32)
@@ -91,8 +97,8 @@ WHATSAPP_SWAGGER_ENABLED=True
 # ===== COMMON =====
 # ==================
 WHATSAPP_DEFAULT_ENGINE=WEBJS
-WAHA_BASE_URL=https://${PRIMARY_DOMAIN}
-WAHA_PUBLIC_URL=https://${PRIMARY_DOMAIN}
+WAHA_BASE_URL=http://${SERVER_IP}:3000
+WAHA_PUBLIC_URL=http://${SERVER_IP}:3000
 
 # ===================
 # ===== LOGGING =====
@@ -136,22 +142,38 @@ EOF
 # 6️⃣ Start WAHA
 #############################################
 
+echo "Starting WAHA..."
+
 docker compose up -d
 
 sleep 5
 
 #############################################
-# 7️⃣ Display Credentials
+# 7️⃣ Configure Firewall (If UFW Exists)
+#############################################
+
+if command -v ufw &> /dev/null
+then
+    ufw allow 3000/tcp || true
+    ufw reload || true
+fi
+
+#############################################
+# 8️⃣ Display Credentials
 #############################################
 
 echo ""
 echo "=========================================="
-echo " WAHA Installed Successfully 🎉"
+echo "        WAHA Installed Successfully 🎉"
 echo "=========================================="
-echo "Domain: https://${PRIMARY_DOMAIN}"
-echo "Local URL: http://SERVER_IP:3000"
 echo ""
-echo "WAHA_API_KEY:"
+echo "Access URLs:"
+echo "Main:      http://${SERVER_IP}:3000"
+echo "Dashboard: http://${SERVER_IP}:3000/dashboard"
+echo "Swagger:   http://${SERVER_IP}:3000/docs"
+echo ""
+echo "=========================================="
+echo "API KEY:"
 echo "${WAHA_API_KEY}"
 echo ""
 echo "Dashboard Login:"
